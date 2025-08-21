@@ -97,7 +97,7 @@ jobs:
           secure: true
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
-          subject: "OpenAlex Weekly Summary"
+          subject: "UCVM Research Output Weekly Summary"
           to: "jdebuck@ucalgary.ca"
           from: "${{ secrets.MAIL_USERNAME }}"
           html_body: |
