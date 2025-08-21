@@ -1,11 +1,8 @@
-
 import os
 import re
 import time
 import json
-import math
 import typing as T
-from dataclasses import dataclass
 from urllib.parse import urlencode
 from datetime import datetime, timedelta, timezone
 
@@ -15,25 +12,38 @@ from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_excep
 OPENALEX_BASE = "https://api.openalex.org"
 DEFAULT_PER_PAGE = 200
 
-def _normalize_author_id(x: str) -> str:
+_NAN_LIKE = {"", "nan", "none", "null"}
+
+def _normalize_author_id(x: T.Any) -> str:
     """
     Accepts variations like 'A12345', 'https://openalex.org/A12345', 'authors/A12345'.
-    Returns the short OpenAlex Author ID like 'A12345' (always uppercase A).
+    Returns canonical short OpenAlex Author ID like 'A12345' (uppercase 'A').
+    Returns '' for blanks/NaN-ish values.
     """
-    if not x:
+    if x is None:
         return ""
-    x = str(x).strip()
-    # pull last path segment
-    m = re.search(r'([aA]\d+)$', x)
+    sx = str(x).strip()
+    if not sx or sx.lower() in _NAN_LIKE:
+        return ""
+    # allow full URL or trailing segment
+    m = re.search(r'(?:openalex\.org/)?([aA]\d+)$', sx)
     if m:
-        return "A" + m.group(1)[1:]
-    return x
+        return m.group(1).upper()
+    # If it's exactly 'A' + digits but case odd
+    m2 = re.match(r'^[aA]\d+$', sx)
+    if m2:
+        return sx.upper()
+    return ""
+
+def _author_uri(aid: str) -> str:
+    """Convert 'A12345' -> 'https://openalex.org/A12345'"""
+    return f"https://openalex.org/{aid}"
 
 def _polite_params() -> dict:
     polite = {}
     email = os.environ.get("OPENALEX_EMAIL")
     if email:
-        polite["mailto"] = email
+        polite["mailto"] = email  # OpenAlex 'polite pool'
     return polite
 
 class OpenAlexError(Exception):
@@ -43,15 +53,22 @@ class OpenAlexError(Exception):
        stop=stop_after_attempt(5),
        retry=retry_if_exception_type((requests.RequestException, OpenAlexError)))
 def _get(url: str, params: dict) -> dict:
-    """GET with retries and basic error handling."""
+    """GET with retries and basic error handling, including 403 backoffs."""
     merged = dict(params or {})
     merged.update(_polite_params())
     resp = requests.get(url, params=merged, timeout=30)
+    # Handle throttling explicitly
     if resp.status_code == 429:
-        # too many requests; backoff based on headers if present
         retry_after = int(resp.headers.get("Retry-After", "1"))
         time.sleep(max(retry_after, 1))
-        raise OpenAlexError("Rate limited")
+        raise OpenAlexError("Rate limited (429)")
+    # Surface 400/403 bodies to logs to aid debugging
+    if resp.status_code in (400, 403):
+        try:
+            body = resp.text[:500]
+        except Exception:
+            body = "<no-body>"
+        raise OpenAlexError(f"{resp.status_code} error from OpenAlex: {body}")
     resp.raise_for_status()
     return resp.json()
 
@@ -77,12 +94,9 @@ def page_works(filter_str: str, select: T.Optional[str] = None) -> T.Iterator[di
         params["cursor"] = cursor
 
 def reconstruct_abstract(inv: dict) -> str:
-    """
-    Reverse OpenAlex abstract_inverted_index into plaintext.
-    """
+    """Reverse OpenAlex abstract_inverted_index into plaintext."""
     if not inv:
         return ""
-    # inv is dict[word] = [positions]
     pairs = []
     for word, positions in inv.items():
         for pos in positions:
@@ -90,9 +104,7 @@ def reconstruct_abstract(inv: dict) -> str:
     if not pairs:
         return ""
     pairs.sort(key=lambda x: x[0])
-    # Positions are 0-based; insert spaces
-    words = [w for (_, w) in pairs]
-    return " ".join(words)
+    return " ".join([w for _, w in pairs])
 
 def today_utc_date():
     return datetime.now(timezone.utc).date()
@@ -105,61 +117,74 @@ def dates_last_n_days(n: int):
 def normalized_faculty_from_csv(csv_path: str):
     """
     Returns list of dicts: {'name': '...', 'openalex_id': 'A...'}
-    Accepts flexible column headers like Name, Full Name; OpenAlexID, openalex_id, openalex, id
+    Accepts flexible column headers like Name, Full Name; OpenAlexID, openalex_id, openalex, id.
+    Skips blank/NaN/non-matching IDs.
     """
     import pandas as pd
     df = pd.read_csv(csv_path)
-    # find likely columns
     cols = {c.lower().strip(): c for c in df.columns}
-    name_col = None
-    for k in ["name", "full name", "full_name"]:
-        if k in cols:
-            name_col = cols[k]
-            break
-    if name_col is None:
-        # choose first string-like column
-        name_col = df.columns[0]
-    id_col = None
-    for k in ["openalexid", "openalex_id", "openalex", "id", "author_id"]:
-        if k in cols:
-            id_col = cols[k]
-            break
+
+    name_col = next((cols[k] for k in ["name", "full name", "full_name"] if k in cols), None) or df.columns[0]
+    id_col = next((cols[k] for k in ["openalexid", "openalex_id", "openalex", "id", "author_id"] if k in cols), None)
     if id_col is None and len(df.columns) >= 2:
         id_col = df.columns[1]
+
     faculty = []
     for _, row in df.iterrows():
         name = str(row.get(name_col, "")).strip()
         aid = _normalize_author_id(row.get(id_col, ""))
         if aid:
-            faculty.append({"name": name, "openalex_id": aid, "openalex_url": f"https://openalex.org/authors/{aid.lower()}"})
+            faculty.append({
+                "name": name,
+                "openalex_id": aid,
+                "openalex_url": f"https://openalex.org/authors/{aid.lower()}"
+            })
     return faculty
+
+def _clean_ids(author_ids: T.Iterable[str]) -> T.List[str]:
+    """Keep only A\d+; drop blanks/invalid."""
+    out = []
+    for aid in author_ids:
+        if not aid:
+            continue
+        if re.match(r"^A\d+$", aid):
+            out.append(aid)
+    # de-dup while preserving order
+    seen = set()
+    uniq = []
+    for a in out:
+        if a not in seen:
+            uniq.append(a)
+            seen.add(a)
+    return uniq
 
 def collect_recent_works_for_authors(author_ids, start_date: str, end_date: str) -> dict:
     """
     Fetch works for list of OpenAlex Author IDs in date window.
-    Returns dict keyed by work_id with merged info and a set of matching authors from the cohort.
+    Returns dict keyed by work_id.
     """
     work_map = {}
-    # Build filter with pipe-separated authors up to 100 (OpenAlex allows many values)
-    # If >100 authors, we chunk the requests.
-    CHUNK = 80
-    for i in range(0, len(author_ids), CHUNK):
-        chunk = author_ids[i:i+CHUNK]
-        author_filter_val = "|".join(chunk)
-        filter_str = f"author.id:{author_filter_val},from_publication_date:{start_date},to_publication_date:{end_date}"
-        select = None  # we want full fields
-        for w in page_works(filter_str, select=select):
-            wid = w.get("id", "")
-            if not wid:
-                # sometimes 'ids.openalex' is the canonical; but 'id' should be present
-                wid = w.get("ids", {}).get("openalex", "")
+
+    clean_ids = _clean_ids(author_ids)
+    if not clean_ids:
+        return work_map
+
+    # Use smaller chunks and full URIs in the filter for robustness.
+    CHUNK = 25
+    for i in range(0, len(clean_ids), CHUNK):
+        chunk = clean_ids[i:i+CHUNK]
+        author_filter_val = "|".join(_author_uri(a) for a in chunk)
+        filter_str = (
+            f"author.id:{author_filter_val},"
+            f"from_publication_date:{start_date},to_publication_date:{end_date}"
+        )
+        for w in page_works(filter_str, select=None):
+            wid = w.get("id", "") or w.get("ids", {}).get("openalex", "")
             if not wid:
                 continue
             if wid not in work_map:
                 work_map[wid] = w
-            else:
-                # Merge: no real need since works are identical; keep first
-                pass
+
     return work_map
 
 def extract_journal_name(work: dict) -> str:
@@ -181,9 +206,10 @@ def extract_authors_list(work: dict) -> T.List[dict]:
         author = a.get("author") or {}
         if not author:
             continue
+        openalex_id = _normalize_author_id(author.get("id", ""))
         authors.append({
             "id": author.get("id", ""),
-            "openalex_id": _normalize_author_id(author.get("id", "")),
+            "openalex_id": openalex_id,
             "display_name": author.get("display_name", ""),
             "orcid": author.get("orcid", ""),
             "author_position": a.get("author_position", "")
