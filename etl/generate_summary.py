@@ -94,7 +94,8 @@ Goals:
 - Highlight notable findings (group by theme if possible).
 - Explicitly mention which cohort authors appear (by full name).
 - Name the journals/venues.
-- Keep to ~6 short bullet points plus a 'By the numbers' section (counts by journal, count of works).
+- Keep to ~3 short bullet points per individual work plus a 'By the numbers' section (counts by journal, count of works).
+- Don't suggest follow up queries.
 
 Data (one per line: TITLE ¦ JOURNAL ¦ DATE ¦ COHORT_AUTHORS ¦ ABSTRACT_SNIPPET):
 {joined}
