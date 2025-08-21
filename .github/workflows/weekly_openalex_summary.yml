@@ -1,85 +1,3 @@
-name: weekly-openalex-summary
-
-on:
-  schedule:
-    # Runs weekly (Mon 14:00 UTC ≈ 08:00 America/Edmonton during MDT)
-    - cron: '0 14 * * 1'
-  workflow_dispatch:
-
-permissions:
-  contents: write
-  pages: write
-  id-token: write
-
-# Avoid overlapping Pages deployments
-concurrency:
-  group: pages
-  cancel-in-progress: false
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    outputs:
-      repo_name: ${{ steps.meta.outputs.repo_name }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Derive repo name
-        id: meta
-        run: echo "repo_name=${GITHUB_REPOSITORY#*/}" >> $GITHUB_OUTPUT
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Fetch OpenAlex data (last 14 days)
-        env:
-          OPENALEX_EMAIL: ${{ secrets.OPENALEX_EMAIL }}
-        run: python etl/fetch_recent_works.py --input data/full_time_faculty.csv --days 14 --out data/recent_works.json
-
-      - name: Generate summary + HTML
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
-          OPENALEX_EMAIL: ${{ secrets.OPENALEX_EMAIL }}
-        run: python etl/generate_summary.py --in data/recent_works.json --out docs/index.html
-
-      - name: Commit and push changes
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/*.json data/summary_latest.html docs/index.html || true
-          git commit -m "Weekly OpenAlex update" || echo "No changes to commit"
-          git push
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: docs
-
-      - name: Upload summary artifact (for email)
-        uses: actions/upload-artifact@v4
-        with:
-          name: summary-file
-          path: data/summary_latest.html
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deploy
-        uses: actions/deploy-pages@v4
-
   email:
     needs: build
     runs-on: ubuntu-latest
@@ -94,6 +12,7 @@ jobs:
         with:
           server_address: smtp.gmail.com
           server_port: 465
+          secure: true
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
           subject: "OpenAlex Weekly Summary"
@@ -101,6 +20,6 @@ jobs:
           from: "${{ secrets.MAIL_USERNAME }}"
           html_body: |
             <p>The latest OpenAlex Weekly Summary has been generated.</p>
-            <p>View it on GitHub Pages: https://${{ github.repository_owner }}.github.io/${{ needs.build.outputs.repo_name }}/</p>
+            <p>View it on GitHub Pages: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/</p>
           attachments: |
             summary_latest.html
