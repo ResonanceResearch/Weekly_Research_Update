@@ -145,14 +145,23 @@ def call_openai_and_summarize(data: dict) -> str:
 # --- Mailto helpers ---
 
 def _mailto_link(email: str, subject: str, body: str) -> str:
-    """Build a safe mailto URL with subject and body."""
+    """
+    Build a mailto: link using RFC 6068 encoding (percent-encoding).
+    Spaces -> %20, newlines -> %0A. Avoid application/x-www-form-urlencoded (+).
+    """
     if not email:
         return ""
-    q = {
-        "subject": subject,
-        "body": body
-    }
-    return f"mailto:{_url.quote(email)}?{_url.urlencode(q)}"
+    # Encode subject and body; keep email readable (don't encode '@', '+', '.', '-', '_')
+    email_safe = _url.quote(email, safe='@+._-')
+    parts = []
+    if subject:
+        parts.append("subject=" + _url.quote(subject, safe=""))
+    if body:
+        # Normalize newlines
+        body = body.replace("\r\n", "\n").replace("\r", "\n")
+        parts.append("body=" + _url.quote(body, safe=""))
+    query = ("?" + "&".join(parts)) if parts else ""
+    return f"mailto:{email_safe}{query}"
 
 def build_html(data: dict, summary_html: str) -> str:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -182,9 +191,9 @@ def build_html(data: dict, summary_html: str) -> str:
             if not email:
                 continue
             person = a.get("display_name") or "colleague"
-            # Subject line can keep smart quotes if desired
-            subj = f'Congrats on “{title}” in {journal}' if title and journal else "Congratulations on your new paper"
-            # Build the main sentence safely without nested f-strings
+            # Subject line per request: only journal (no title)
+            subj = f"Congrats on your recent paper in {journal}" if journal else "Congratulations on your new paper"
+            # Body sentence with title/journal/date if present
             phrase = "Congrats on your new paper"
             if title:
                 phrase += f' "{title}"'
