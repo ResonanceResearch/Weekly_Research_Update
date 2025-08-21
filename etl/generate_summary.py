@@ -5,12 +5,14 @@ Generate an HTML summary via OpenAI and write docs/index.html
 - Reads data JSON produced by fetch_recent_works.py
 - Calls OpenAI (if key present) to produce a concise summary
 - Builds a static HTML page with the summary and a table of works
+- Adds "Congratulate" mailto buttons per cohort author (Email column in CSV)
 """
 import os
 import re
 import json
 import argparse
 import html
+import urllib.parse as _url
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -54,48 +56,33 @@ def render_fallback_summary(data: dict) -> str:
     """
 
 def _get_model() -> str:
-    """
-    Choose model. Falls back to 'gpt-4o-mini' if OPENAI_MODEL is unset/blank.
-    If you want GPT-5 by default, change default below to 'gpt-5'.
-    """
     m = (os.environ.get("OPENAI_MODEL") or "").strip()
-    return m or "gpt-5"
+    return m or "gpt-5-nano"  # your current default
+
+def _use_responses_api(model: str) -> bool:
+    return model.startswith("gpt-5")
 
 def make_messages(data: dict) -> list:
-    """
-    Build a messages list for Chat Completions / Responses API.
-    Provide compact lines to control token use.
-    Format per line: TITLE ¦ JOURNAL ¦ DATE ¦ COHORT_AUTHORS ¦ ABSTRACT_SNIPPET
-    """
+    """Build messages for the model; each line has a 250-word abstract snippet."""
     window = data.get("window", {})
     works = data.get("works", [])
     lines = []
     for w in works:
-        names = "; ".join(
-            [a.get("display_name", "") for a in (w.get("cohort_matches") or []) if a.get("display_name")]
-        )
+        names = "; ".join([a.get("display_name","") for a in (w.get("cohort_matches") or []) if a.get("display_name")])
         abstract = w.get("abstract_snippet_250w") or first_n_words((w.get("abstract_text") or ""), 250)
-        if len(abstract) > 600:
-            abstract = abstract[:600] + "…"
-        # Replace '|' with '¦' to avoid delimiter collisions
         line = f"{w.get('title','')} | {w.get('journal','')} | {w.get('publication_date','')} | {names} | {abstract}"
         line = line.replace("|", "¦")
         lines.append(line)
+    joined = "\n".join(lines[:400])  # cap for token safety
 
-    joined = "\n".join(lines[:400])  # cap to avoid token bloat
-
-    system = (
-        "You are a research analyst summarizing new scholarly works. "
-        "Be precise, concise, and explicitly name journals and in-cohort authors."
-    )
+    system = "You are a research analyst summarizing new scholarly works. Be precise, concise, and explicitly name journals and in-cohort authors."
     user = f"""
 Summarize new works published between {window.get('start')} and {window.get('end')}.
 Goals:
 - Highlight notable findings (group by theme if possible).
 - Explicitly mention which cohort authors appear (by full name).
 - Name the journals/venues.
-- Keep to ~3 short bullet points per individual work plus a 'By the numbers' section (counts by journal, count of works).
-- Don't suggest follow up queries.
+- Keep to ~6 short bullet points plus a 'By the numbers' section (counts by journal, count of works).
 
 Data (one per line: TITLE ¦ JOURNAL ¦ DATE ¦ COHORT_AUTHORS ¦ ABSTRACT_SNIPPET):
 {joined}
@@ -103,71 +90,107 @@ Data (one per line: TITLE ¦ JOURNAL ¦ DATE ¦ COHORT_AUTHORS ¦ ABSTRACT_SNIPP
     return [{"role": "system", "content": system}, {"role": "user", "content": user}]
 
 def call_openai_and_summarize(data: dict) -> str:
-    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    api_key = (os.environ.get("OPENAI_API_KEY") or "").strip()
     if not api_key:
         return render_fallback_summary(data)
 
-    # Prefer Chat Completions, fallback to Responses if needed
     model = _get_model()
     try:
         from openai import OpenAI
         client = OpenAI(api_key=api_key)
         messages = make_messages(data)
-        rsp = client.chat.completions.create(
-            model=model,
-            messages=messages,
-            temperature=0.2,
-        )
-        content = rsp.choices[0].message.content
-    except Exception as e_chat:
-        try:
-            from openai import OpenAI
-            client = OpenAI(api_key=api_key)
-            messages = make_messages(data)
-            rsp = client.responses.create(
-                model=model,
-                input=json.dumps(messages),
-            )
-            content = getattr(rsp, "output_text", None) or str(rsp)
-        except Exception as e_resp:
-            # Return a helpful fallback with error details
-            safe_err = html.escape(f"OpenAI summarization failed (model={model}): chat_error={e_chat}; resp_error={e_resp}")
-            content = f"<p><em>{safe_err}</em></p>"
 
-    html_block = f"""
+        if _use_responses_api(model):
+            rsp = client.responses.create(model=model, input=json.dumps(messages))
+            content = getattr(rsp, "output_text", None) or str(rsp)
+        else:
+            rsp = client.chat.completions.create(model=model, messages=messages, temperature=0.2)
+            content = rsp.choices[0].message.content
+
+    except Exception as e:
+        err = html.escape(f"OpenAI summarization failed (model={model}): {e}")
+        return f"<section><h2>Automated weekly summary</h2><p><em>{err}</em></p></section>"
+
+    return f"""
     <section>
       <h2>Automated weekly summary</h2>
       <div style="white-space:pre-wrap;line-height:1.4">{content}</div>
     </section>
     """
-    return html_block
+
+def _mailto_link(email: str, subject: str, body: str) -> str:
+    """
+    Build a safe mailto URL with subject and body.
+    """
+    if not email:
+        return ""
+    q = {
+        "subject": subject,
+        "body": body
+    }
+    return f"mailto:{_url.quote(email)}?{_url.urlencode(q)}"
 
 def build_html(data: dict, summary_html: str) -> str:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
-    # Build rows with a collapsible Abstract column
     rows = []
     for w in data.get("works", []):
-        cohort_names = ", ".join(
-            [a.get("display_name", "") for a in (w.get("cohort_matches") or []) if a.get("display_name")]
-        )
-        abstract = (w.get("abstract_text") or "").strip()
-        if len(abstract) > 600:
-            abstract = abstract[:600] + "…"
-        title = html.escape(w.get("title", "") or "")
-        journal = html.escape(w.get("journal", "") or "")
-        pubdate = html.escape(w.get("publication_date", "") or "")
-        cohort_names = html.escape(cohort_names or "—")
-        abstract_full = (w.get("abstract_text") or "").strip()  # FULL abstract
+        cohort_matches = (w.get("cohort_matches") or [])
+        openalex_link = w.get("openalex_id") or ""
+        doi_url = w.get("doi_url") or ""
+        link = doi_url or openalex_link or ""
+        title = (w.get("title") or "").strip()
+        journal = (w.get("journal") or "").strip()
+        date = (w.get("publication_date") or "").strip()
+
+        # FULL abstract for HTML
+        abstract_full = (w.get("abstract_text") or "").strip()
         abstract_html = html.escape(abstract_full or "—")
-        openalex_id = html.escape(w.get("openalex_id", "") or "")
+
+        # Cohort authors (names)
+        cohort_names = ", ".join([a.get("display_name","") for a in cohort_matches if a.get("display_name")])
+        cohort_names = cohort_names or "—"
+
+        # Build congratulate buttons (one per matched author with an email)
+        buttons = []
+        for a in cohort_matches:
+            email = (a.get("email") or "").strip()
+            if not email:
+                continue
+            person = a.get("display_name") or "colleague"
+            subj = f'Congrats on “{title}” in {journal}' if title and journal else f"Congratulations on your new paper"
+            # Keep body short and robust
+            body_lines = [
+                f"Hi {person},",
+                "",
+                f"Congrats on your new paper{f' \"{title}\"' if title else ''}{f' in {journal}' if journal else ''}{f' ({date})' if date else ''}.",
+                f"Link: {link}" if link else "",
+                "",
+                "—"
+            ]
+            body = "\n".join([ln for ln in body_lines if ln is not None])
+            mailto = _mailto_link(email, subj, body)
+            safe_label = html.escape(f"Email {person.split()[0] if person else 'author'}")
+            buttons.append(f'<a class="btn" href="{mailto}">{safe_label}</a>')
+
+        buttons_html = " ".join(buttons) if buttons else "—"
+
+        # Escape text for table cells
+        title_html = html.escape(title)
+        journal_html = html.escape(journal)
+        date_html = html.escape(date)
+        cohort_names_html = html.escape(cohort_names)
+        link_attr = html.escape(link)
+        openalex_attr = html.escape(openalex_link)
+
         rows.append(f"""
         <tr>
-          <td><a href="{openalex_id}">{title}</a></td>
-          <td>{journal}</td>
-          <td>{pubdate}</td>
-          <td>{cohort_names}</td>
+          <td><a href="{openalex_attr}">{title_html}</a>{f' <small>· <a href="{link_attr}">doi/link</a></small>' if link else ''}</td>
+          <td>{journal_html}</td>
+          <td>{date_html}</td>
+          <td>{cohort_names_html}</td>
           <td><details><summary>view</summary><div style="white-space:pre-wrap">{abstract_html}</div></details></td>
+          <td>{buttons_html}</td>
         </tr>
         """)
 
@@ -178,7 +201,7 @@ def build_html(data: dict, summary_html: str) -> str:
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>UCVM Research Weekly Summary</title>
+  <title>OpenAlex Weekly Summary</title>
   <style>
     body {{ font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 2rem; }}
     header, footer {{ color: #444; }}
@@ -187,11 +210,21 @@ def build_html(data: dict, summary_html: str) -> str:
     th {{ background: #f7f7f7; text-align: left; }}
     .meta {{ font-size: 0.9rem; color: #666; }}
     details summary {{ cursor: pointer; }}
+    .btn {{
+      display: inline-block;
+      padding: 0.35rem 0.6rem;
+      border-radius: 0.45rem;
+      border: 1px solid #ccc;
+      text-decoration: none;
+      font-size: 0.9rem;
+      background: #fafafa;
+    }}
+    .btn:hover {{ background: #f0f0f0; }}
   </style>
 </head>
 <body>
   <header>
-    <h1>UCVM Research Weekly Summary</h1>
+    <h1>OpenAlex Weekly Summary</h1>
     <p class="meta">Generated: {now} | Window: {html.escape(str(data.get('window',{}).get('start')))} → {html.escape(str(data.get('window',{}).get('end')))} | Works: {data.get('works_count')}</p>
   </header>
 
@@ -199,7 +232,9 @@ def build_html(data: dict, summary_html: str) -> str:
 
   <h2>All works in window</h2>
   <table>
-    <thead><tr><th>Title</th><th>Journal</th><th>Date</th><th>Cohort Authors</th><th>Abstract</th></tr></thead>
+    <thead><tr>
+      <th>Title</th><th>Journal</th><th>Date</th><th>Cohort Authors</th><th>Abstract</th><th>Congratulate</th>
+    </tr></thead>
     <tbody>
       {table_html}
     </tbody>
@@ -226,7 +261,7 @@ def main():
     with open(args.outfile, "w", encoding="utf-8") as f:
         f.write(html_page)
 
-    # Also save the summary page as an attachment for email
+    # Also save a copy for email attachment
     with open("data/summary_latest.html", "w", encoding="utf-8") as f:
         f.write(html_page)
 
