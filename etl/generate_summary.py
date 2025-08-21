@@ -83,6 +83,7 @@ Goals:
 - Explicitly mention which cohort authors appear (by full name).
 - Name the journals/venues.
 - Keep to ~6 short bullet points plus a 'By the numbers' section (counts by journal, count of works).
+- Don't add suggestions for follow-up queries
 
 Data (one per line: TITLE ¦ JOURNAL ¦ DATE ¦ COHORT_AUTHORS ¦ ABSTRACT_SNIPPET):
 {joined}
@@ -224,7 +225,7 @@ def build_html(data: dict, summary_html: str) -> str:
 </head>
 <body>
   <header>
-    <h1>OpenAlex Weekly Summary</h1>
+    <h1>UCVM Research Weekly Summary</h1>
     <p class="meta">Generated: {now} | Window: {html.escape(str(data.get('window',{}).get('start')))} → {html.escape(str(data.get('window',{}).get('end')))} | Works: {data.get('works_count')}</p>
   </header>
 
