@@ -182,11 +182,22 @@ def build_html(data: dict, summary_html: str) -> str:
             if not email:
                 continue
             person = a.get("display_name") or "colleague"
-            subj = f'Congrats on “{title}” in {journal}' if title and journal else f"Congratulations on your new paper"
+            # Subject line can keep smart quotes if desired
+            subj = f'Congrats on “{title}” in {journal}' if title and journal else "Congratulations on your new paper"
+            # Build the main sentence safely without nested f-strings
+            phrase = "Congrats on your new paper"
+            if title:
+                phrase += f' "{title}"'
+            if journal:
+                phrase += f" in {journal}"
+            if date:
+                phrase += f" ({date})"
+            phrase += "."
+
             body_lines = [
                 f"Hi {person},",
                 "",
-                f"Congrats on your new paper{f' "{title}"' if title else ''}{f' in {journal}' if journal else ''}{f' ({date})' if date else ''}.",
+                phrase,
                 f"Link: {link}" if link else "",
                 "",
                 "—"
