@@ -4,8 +4,13 @@
 Generate an HTML summary via OpenAI and write docs/index.html
 """
 import os, json, argparse, sys, textwrap
+import html
 from datetime import datetime, timezone
 from pathlib import Path
+
+
+def _get_model() -> str:
+    return (os.environ.get("OPENAI_MODEL", "gpt-5") or "gpt-5").strip()
 
 def render_fallback_summary(data: dict) -> str:
     """Produce a simple HTML summary without OpenAI if key is missing."""
@@ -88,6 +93,7 @@ def call_openai_and_summarize(data: dict) -> str:
         content = rsp.choices[0].message.content
     except Exception as e:
         # Try responses API fallback if chat.completions failed
+        content = f"<p><em>OpenAI summarization failed (model={_get_model()}): {html.escape(str(e))}</em></p>"
         try:
             from openai import OpenAI
             client = OpenAI(api_key=api_key)
@@ -107,20 +113,22 @@ def call_openai_and_summarize(data: dict) -> str:
     """
     return html
 
-def build_html(data: dict, summary_html: str) -> str:
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    # Build a simple index including a table of works
-    rows = []
-    for w in data.get("works", []):
-        cohort_names = ", ".join([a.get("display_name","") for a in (w.get("cohort_matches") or []) if a.get("display_name")])
-        rows.append(f"""
-        <tr>
-          <td><a href="{w.get('openalex_id','')}">{w.get('title','')}</a></td>
-          <td>{w.get('journal','')}</td>
-          <td>{w.get('publication_date','')}</td>
-          <td>{cohort_names or '—'}</td>
-        </tr>
-        """)
+for w in data.get("works", []):
+    cohort_names = ", ".join([a.get("display_name","") for a in (w.get("cohort_matches") or []) if a.get("display_name")])
+    abstract = (w.get("abstract_text") or "").strip()
+    if len(abstract) > 600:
+        abstract = abstract[:600] + "…"
+    abstract_html = html.escape(abstract)
+    rows.append(f"""
+    <tr>
+      <td><a href="{w.get('openalex_id','')}">{html.escape(w.get('title','') or '')}</a></td>
+      <td>{html.escape(w.get('journal','') or '')}</td>
+      <td>{html.escape(w.get('publication_date','') or '')}</td>
+      <td>{html.escape(cohort_names or '—')}</td>
+      <td><details><summary>view</summary><div style="white-space:pre-wrap">{abstract_html or '—'}</div></details></td>
+    </tr>
+    """)
+
     table_html = "\n".join(rows[:3000])  # sanity cap
 
     template = f"""<!doctype html>
@@ -148,7 +156,7 @@ def build_html(data: dict, summary_html: str) -> str:
 
   <h2>All works in window</h2>
   <table>
-    <thead><tr><th>Title</th><th>Journal</th><th>Date</th><th>Cohort Authors</th></tr></thead>
+    <thead><tr><th>Title</th><th>Journal</th><th>Date</th><th>Cohort Authors</th><th>Abstract</th></tr></thead>
     <tbody>
       {table_html}
     </tbody>
