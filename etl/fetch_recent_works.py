@@ -21,7 +21,7 @@ def first_n_words(text: str, n: int = 250) -> str:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--input", default="data/full_time_faculty.csv", help="CSV with Name and OpenAlexID columns")
-    ap.add_argument("--days", default=14, type=int, help="Lookback window in days")
+    ap.add_argument("--days", default=7, type=int, help="Lookback window in days")
     ap.add_argument("--out", default="data/recent_works.json", help="Output JSON")
     args = ap.parse_args()
 
