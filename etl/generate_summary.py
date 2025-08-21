@@ -59,7 +59,7 @@ def _get_model() -> str:
     If you want GPT-5 by default, change default below to 'gpt-5'.
     """
     m = (os.environ.get("OPENAI_MODEL") or "").strip()
-    return m or "gpt-4o-mini"
+    return m or "gpt-5"
 
 def make_messages(data: dict) -> list:
     """
@@ -177,7 +177,7 @@ def build_html(data: dict, summary_html: str) -> str:
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>OpenAlex Weekly Summary</title>
+  <title>UCVM Research Weekly Summary</title>
   <style>
     body {{ font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 2rem; }}
     header, footer {{ color: #444; }}
@@ -190,7 +190,7 @@ def build_html(data: dict, summary_html: str) -> str:
 </head>
 <body>
   <header>
-    <h1>OpenAlex Weekly Summary</h1>
+    <h1>UCVM Research Weekly Summary</h1>
     <p class="meta">Generated: {now} | Window: {html.escape(str(data.get('window',{}).get('start')))} → {html.escape(str(data.get('window',{}).get('end')))} | Works: {data.get('works_count')}</p>
   </header>
 
