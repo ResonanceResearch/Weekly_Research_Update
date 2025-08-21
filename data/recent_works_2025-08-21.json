@@ -1,5 +1,5 @@
 {
-  "generated_at": "2025-08-21T22:10:08.128189+00:00",
+  "generated_at": "2025-08-21T22:47:07.979658+00:00",
   "window": {
     "start": "2025-08-14",
     "end": "2025-08-21"
@@ -15,6 +15,7 @@
       "journal": "American Journal of Veterinary Research",
       "type": "article",
       "doi": "https://doi.org/10.2460/ajvr.25.05.0172",
+      "doi_url": "https://doi.org/10.2460/ajvr.25.05.0172",
       "authorships": [
         {
           "id": "https://openalex.org/A5035335200",
@@ -42,7 +43,8 @@
           "openalex_id": "A5042612602",
           "display_name": "Daniel Pang",
           "orcid": "https://orcid.org/0000-0002-6420-477X",
-          "author_position": "last"
+          "author_position": "last",
+          "email": "dsjpang@ucalgary.ca"
         }
       ],
       "cohort_matches": [
@@ -51,7 +53,8 @@
           "openalex_id": "A5042612602",
           "display_name": "Daniel Pang",
           "orcid": "https://orcid.org/0000-0002-6420-477X",
-          "author_position": "last"
+          "author_position": "last",
+          "email": "dsjpang@ucalgary.ca"
         }
       ],
       "abstract_inverted_index": {
