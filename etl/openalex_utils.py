@@ -14,37 +14,26 @@ DEFAULT_PER_PAGE = 200
 
 _NAN_LIKE = {"", "nan", "none", "null"}
 
-def normalized_faculty_from_csv(csv_path: str):
+def _normalize_author_id(x: T.Any) -> str:
     """
-    Returns list of dicts:
-      {'name': '...', 'openalex_id': 'A...', 'email': 'person@uni...', 'openalex_url': 'https://openalex.org/authors/a...'}
-    Accepts flexible headers: Name/Full Name; OpenAlexID/openalex_id/openalex/id; Email/e-mail/mail.
-    Skips blank/NaN IDs.
+    Accepts variations like 'A12345', 'https://openalex.org/A12345', 'authors/A12345'.
+    Returns canonical short OpenAlex Author ID like 'A12345' (uppercase 'A').
+    Returns '' for blanks/NaN-ish values.
     """
-    import pandas as pd
-    df = pd.read_csv(csv_path)
-    cols = {c.lower().strip(): c for c in df.columns}
-
-    name_col = next((cols[k] for k in ["name", "full name", "full_name"] if k in cols), None) or df.columns[0]
-    id_col = next((cols[k] for k in ["openalexid", "openalex_id", "openalex", "id", "author_id"] if k in cols), None)
-    if id_col is None and len(df.columns) >= 2:
-        id_col = df.columns[1]
-    email_col = next((cols[k] for k in ["email", "e-mail", "mail"] if k in cols), None)
-
-    faculty = []
-    for _, row in df.iterrows():
-        name = str(row.get(name_col, "")).strip()
-        aid = _normalize_author_id(row.get(id_col, ""))
-        email = str(row.get(email_col, "")).strip() if email_col else ""
-        if aid:
-            faculty.append({
-                "name": name,
-                "openalex_id": aid,
-                "email": email,
-                "openalex_url": f"https://openalex.org/authors/{aid.lower()}"
-            })
-    return faculty
-
+    if x is None:
+        return ""
+    sx = str(x).strip()
+    if not sx or sx.lower() in _NAN_LIKE:
+        return ""
+    # allow full URL or trailing segment
+    m = re.search(r'(?:openalex\.org/)?([aA]\d+)$', sx)
+    if m:
+        return m.group(1).upper()
+    # If it's exactly 'A' + digits but case odd
+    m2 = re.match(r'^[aA]\d+$', sx)
+    if m2:
+        return sx.upper()
+    return ""
 
 def _author_uri(aid: str) -> str:
     """Convert 'A12345' -> 'https://openalex.org/A12345'"""
