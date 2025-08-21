@@ -7,11 +7,20 @@ Generate an HTML summary via OpenAI and write docs/index.html
 - Builds a static HTML page with the summary and a table of works
 """
 import os
+import re
 import json
 import argparse
 import html
 from datetime import datetime, timezone
 from pathlib import Path
+
+def first_n_words(text: str, n: int = 250) -> str:
+    if not text:
+        return ""
+    words = re.findall(r"\S+", text.strip())
+    if len(words) <= n:
+        return " ".join(words)
+    return " ".join(words[:n]) + "…"
 
 def render_fallback_summary(data: dict) -> str:
     """Produce a simple HTML summary without OpenAI if key is missing or call fails."""
@@ -65,7 +74,7 @@ def make_messages(data: dict) -> list:
         names = "; ".join(
             [a.get("display_name", "") for a in (w.get("cohort_matches") or []) if a.get("display_name")]
         )
-        abstract = (w.get("abstract_text") or "").strip()
+        abstract = w.get("abstract_snippet_250w") or first_n_words((w.get("abstract_text") or ""), 250)
         if len(abstract) > 600:
             abstract = abstract[:600] + "…"
         # Replace '|' with '¦' to avoid delimiter collisions
@@ -148,7 +157,8 @@ def build_html(data: dict, summary_html: str) -> str:
         journal = html.escape(w.get("journal", "") or "")
         pubdate = html.escape(w.get("publication_date", "") or "")
         cohort_names = html.escape(cohort_names or "—")
-        abstract_html = html.escape(abstract or "—")
+        abstract_full = (w.get("abstract_text") or "").strip()  # FULL abstract
+        abstract_html = html.escape(abstract_full or "—")
         openalex_id = html.escape(w.get("openalex_id", "") or "")
         rows.append(f"""
         <tr>
