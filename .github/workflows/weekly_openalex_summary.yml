@@ -38,15 +38,15 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Fetch OpenAlex data (last 7 days)
+      - name: Fetch OpenAlex data (last 14 days)
         env:
           OPENALEX_EMAIL: ${{ secrets.OPENALEX_EMAIL }}
-        run: python etl/fetch_recent_works.py --input data/full_time_faculty.csv --days 7 --out data/recent_works.json
+        run: python etl/fetch_recent_works.py --input data/full_time_faculty.csv --days 14 --out data/recent_works.json
 
       - name: Generate summary + HTML
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_MODEL: gpt-5-mini
+          OPENAI_MODEL: gpt-5-nano
           OPENALEX_EMAIL: ${{ secrets.OPENALEX_EMAIL }}
         run: python etl/generate_summary.py --in data/recent_works.json --out docs/index.html
 
