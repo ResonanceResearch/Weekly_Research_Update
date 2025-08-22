@@ -46,7 +46,7 @@ jobs:
       - name: Generate summary + HTML
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_MODEL: gpt-5-nano
+          OPENAI_MODEL: gpt-5-mini
           OPENALEX_EMAIL: ${{ secrets.OPENALEX_EMAIL }}
         run: python etl/generate_summary.py --in data/recent_works.json --out docs/index.html
 
