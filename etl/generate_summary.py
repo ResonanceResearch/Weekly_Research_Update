@@ -91,7 +91,7 @@ def make_messages(data: dict) -> list:
     user = f"""
 Summarize new works published between {window.get('start')} and {window.get('end')}.
 Goals:
-- Highlight notable findings (group by theme if possible) based on title and abstract.
+- Highlight notable findings.
 - Explicitly mention which cohort authors appear (by full name).
 - Name the journals/venues.
 - Keep to max 3 short points (not bullet points) per individual work plus a 'By the numbers' section (counts by journal, count of works).
