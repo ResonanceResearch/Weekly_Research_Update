@@ -85,16 +85,16 @@ def make_messages(data: dict) -> list:
     joined = "\n".join(lines[:400])  # cap to avoid token bloat
 
     system = (
-        "You are a research analyst summarizing new scholarly works. "
-        "Be precise, concise, and explicitly name journals and in-cohort authors."
+        "You are a scientific communications expert summarizing new scholarly works. "
+        "Be precise, concise, compelling and explicitly name journals and in-cohort authors."
     )
     user = f"""
 Summarize new works published between {window.get('start')} and {window.get('end')}.
 Goals:
-- Highlight notable findings (group by theme if possible).
+- Highlight notable findings (group by theme if possible) based on title and abstract.
 - Explicitly mention which cohort authors appear (by full name).
 - Name the journals/venues.
-- Keep to ~3 short bullet points per individual work plus a 'By the numbers' section (counts by journal, count of works).
+- Keep to ~3 short points per individual work plus a 'By the numbers' section (counts by journal, count of works).
 - Don't suggest follow up queries.
 
 Data (one per line: TITLE ¦ JOURNAL ¦ DATE ¦ COHORT_AUTHORS ¦ ABSTRACT_SNIPPET):
