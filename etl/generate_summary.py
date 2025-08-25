@@ -244,7 +244,7 @@ def build_html(data: dict, summary_html: str) -> str:
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>UCVM Research Weekly Summary</title>
+  <title>WCVM Dept Vet Microbiology Research Weekly Summary</title>
   <style>
     body {{ font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 2rem; }}
     header, footer {{ color: #444; }}
@@ -267,7 +267,7 @@ def build_html(data: dict, summary_html: str) -> str:
 </head>
 <body>
   <header>
-    <h1>UCVM Research Weekly Summary</h1>
+    <h1>WCVM Dept Vet Microbiology Research Weekly Summary</h1>
     <p class="meta">Generated: {now} | Window: {html.escape(str(data.get('window',{}).get('start')))} → {html.escape(str(data.get('window',{}).get('end')))} | Works: {data.get('works_count')}</p>
   </header>
 
