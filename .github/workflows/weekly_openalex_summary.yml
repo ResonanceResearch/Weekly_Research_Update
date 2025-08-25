@@ -55,7 +55,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/*.json data/summary_latest.html docs/index.html || true
-          git commit -m "Weekly UCVM Research update" || echo "No changes to commit"
+          git commit -m "Weekly WCVM Dept Vet Micro Research update" || echo "No changes to commit"
           git push
 
       - name: Upload Pages artifact
@@ -97,11 +97,11 @@ jobs:
           secure: true
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
-          subject: "UCVM Research Output Weekly Summary"
+          subject: "WCVM Dept Vet Micro Research Output Weekly Summary"
           to: "jdebuck@ucalgary.ca"
           from: "${{ secrets.MAIL_USERNAME }}"
           html_body: |
-            <p>The latest UCVM Research Weekly Summary has been generated.</p>
+            <p>The latest WCVM Dept Vet Micro Research Weekly Summary has been generated.</p>
             <p>View it online: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/</p>
           attachments: |
             summary_latest.html
