@@ -1,0 +1,191 @@
+/* ====== Base / tokens ====== */
+:root{
+  --bg: #ffffff;
+  --text: #1f2937;          /* slate-800 */
+  --muted: #6b7280;         /* slate-500 */
+  --border: #e5e7eb;        /* slate-200 */
+  --accent: #0ea5e9;        /* sky-500 */
+  --accent-600: #0284c7;    /* sky-600 */
+  --soft: #f8fafc;          /* slate-50 */
+  --soft-2: #f1f5f9;        /* slate-100 */
+  --shadow: 0 8px 30px rgba(0,0,0,.06);
+}
+
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg: #0b1220;
+    --text: #e5e7eb;
+    --muted: #9ca3af;
+    --border: #1f2937;
+    --accent: #38bdf8;
+    --accent-600: #0ea5e9;
+    --soft: #0f172a;
+    --soft-2: #0b1220;
+    --shadow: 0 10px 30px rgba(0,0,0,.35);
+  }
+}
+
+/* ====== Page ====== */
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  font: 16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+}
+
+/* container */
+.page{
+  max-width: 1120px;
+  margin: 48px auto;
+  padding: 0 20px;
+}
+
+/* ====== Header ====== */
+.header{
+  display:flex; align-items:center; gap:20px;
+  padding: 18px 20px;
+  background: var(--soft);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+}
+.header__brand{ flex:1 1 auto; }
+.header h1{
+  margin:0 0 6px 0;
+  font-weight: 800; letter-spacing:.2px;
+  font-size: clamp(1.25rem, 1.1rem + 1vw, 1.9rem);
+}
+.meta{
+  color: var(--muted);
+  font-size: .92rem;
+}
+.header__logo{
+  height: 84px; width:auto; object-fit:contain; margin-left:auto;
+}
+
+/* Make logo float right on wide screens, stack on small */
+@media (max-width:720px){
+  .header{ flex-direction: column-reverse; align-items:flex-start }
+  .header__logo{ margin:0 0 8px 0; height:64px }
+}
+
+/* ====== Sections ====== */
+.section{
+  margin-top: 28px;
+  background: var(--soft);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  padding: 18px 20px;
+}
+.section h2{
+  margin: 0 0 10px 0;
+  font-size: 1.25rem;
+}
+
+/* Pre-wrap summary block */
+.summary-block{
+  white-space: pre-wrap;
+  line-height:1.5;
+}
+
+/* ====== Table -> responsive ====== */
+.table-wrap{
+  margin-top: 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow:hidden;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+table{
+  width:100%;
+  border-collapse: collapse;
+}
+thead th{
+  background: var(--soft-2);
+  font-weight: 700;
+  text-align:left;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: .92rem;
+}
+td{
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+tbody tr:hover{ background: rgba(2,132,199,.06) }
+
+/* Stack rows as cards on small screens */
+@media (max-width: 860px){
+  thead{ display:none }
+  table, tbody, tr, td{ display:block; width:100% }
+  tbody tr{ border-bottom: 1px solid var(--border); padding:10px 0 }
+  td{ border:0; padding:8px 14px }
+  td::before{
+    content: attr(data-label);
+    display:block; font-size:.78rem; color:var(--muted); margin-bottom:4px
+  }
+}
+
+/* ====== Details / abstracts ====== */
+details summary{
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--accent-600);
+  outline:none;
+}
+details[open] summary{ margin-bottom:6px }
+details > div{ color: var(--text) }
+details{
+  background: var(--soft);
+  border: 1px dashed var(--border);
+  padding: 10px 12px;
+  border-radius: 10px;
+}
+
+/* ====== Buttons ====== */
+.btn{
+  display:inline-block;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  text-decoration:none;
+  font-size:.92rem;
+  background: linear-gradient(to bottom, #ffffff, #f8fafc);
+  color: var(--text);
+  transition: transform .04s ease, background .2s ease, border-color .2s ease;
+}
+.btn + .btn{ margin-left: 8px }
+.btn:hover{
+  background: #eef6ff;
+  border-color: #93c5fd;
+  transform: translateY(-1px);
+}
+.btn:active{ transform: translateY(0) }
+
+/* Badge list in the summary-by-numbers (if you add spans) */
+.badge{
+  display:inline-block; padding: 2px 8px; border-radius:999px;
+  background: var(--soft-2); border:1px solid var(--border);
+  font-size:.8rem; color:var(--muted); margin: 2px 6px 2px 0;
+}
+
+/* ====== Footer ====== */
+.footer{
+  color: var(--muted);
+  font-size:.9rem;
+  text-align:center;
+  margin: 26px 0 8px 0;
+}
+
+/* ====== Print ====== */
+@media print{
+  .btn{ display:none !important }
+  .header, .section, .table-wrap{ box-shadow:none }
+}
