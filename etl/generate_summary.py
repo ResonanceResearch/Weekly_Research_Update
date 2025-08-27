@@ -254,14 +254,14 @@ def build_html(data: dict, summary_html: str) -> str:
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>UCVM Research Weekly Summary</title>
+  <title>WCVM VetMic Research Weekly Summary</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div class="page">
     <header class="header">
       <div class="header__brand">
-        <h1>UCVM Research Weekly Summary</h1>
+        <h1>WCVM VetMic Research Weekly Summary</h1>
         <p class="meta">Generated: {html.escape(now)} | Window: {html.escape(start)} → {html.escape(end)} | Works: {n_works}</p>
       </div>
       <img class="header__logo" src="logo.png" alt="Logo">
