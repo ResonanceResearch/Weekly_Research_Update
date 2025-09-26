@@ -287,7 +287,7 @@ def build_html(data: dict, summary_html: str) -> str:
     </section>
 
     <footer class="footer">
-      Built by GitHub Actions • Data from OpenAlex
+      Built by Resonate Research • Data from OA
     </footer>
   </div>
 </body>
